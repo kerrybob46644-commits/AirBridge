@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.projection.MediaProjection
@@ -46,6 +47,10 @@ class CastService : Service() {
     private var testToneThread: Thread? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.applyLocale(newBase))
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -90,7 +95,7 @@ class CastService : Service() {
 
         val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val proj = mpm.getMediaProjection(resultCode, data) ?: run {
-            CastController.addLog("无法创建屏幕捕获会话")
+            CastController.addLog("Could not create screen capture session")
             stopSelf()
             return
         }
@@ -98,7 +103,7 @@ class CastService : Service() {
         proj.registerCallback(
             object : MediaProjection.Callback() {
                 override fun onStop() {
-                    CastController.addLog("屏幕捕获授权被系统撤销")
+                    CastController.addLog("Screen capture permission revoked by system")
                     stopCasting()
                     stopSelf()
                 }
@@ -113,8 +118,8 @@ class CastService : Service() {
                 override fun onState(state: RaopSender.State) {
                     if (gen != sessionGeneration) return
                     when (state) {
-                        RaopSender.State.PAIRING -> CastController.setStatus("正在配对...")
-                        RaopSender.State.HANDSHAKE -> CastController.setStatus("正在建立会话...")
+                        RaopSender.State.PAIRING -> CastController.setStatus("Pairing...")
+                        RaopSender.State.HANDSHAKE -> CastController.setStatus("Setting up session...")
                         else -> Unit
                     }
                 }
@@ -153,7 +158,7 @@ class CastService : Service() {
         )
         capture!!.onRate = { rate -> s.onCaptureRate(rate) }
         if (!capture!!.start()) {
-            CastController.addLog("无法捕获系统音频（请检查是否允许投射屏幕/音频）")
+            CastController.addLog("Could not capture system audio (check that screen/audio capture is allowed)")
             cleanup()
             stopSelf()
             return
@@ -165,7 +170,7 @@ class CastService : Service() {
     private fun stopCasting() {
         if (stopping) return
         stopping = true
-        CastController.addLog("正在停止投射...")
+        CastController.addLog("Stopping cast...")
         stopTestTone()
         cleanup()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -250,10 +255,10 @@ class CastService : Service() {
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_airplay)
             .setContentTitle(getString(R.string.notif_title))
-            .setContentText("点击停止可结束投射")
+            .setContentText(getString(R.string.notif_content))
             .setContentIntent(openPi)
             .setOngoing(true)
-            .addAction(0, "停止", stopPi)
+            .addAction(0, getString(R.string.notif_action_stop), stopPi)
             .build()
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
@@ -264,7 +269,7 @@ class CastService : Service() {
 
     private fun toggleTestTone() {
         if (sender == null) {
-            CastController.addLog("当前没有正在投射的会话")
+            CastController.addLog("No active casting session")
             return
         }
         if (testToneOn) {

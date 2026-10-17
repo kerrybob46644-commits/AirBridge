@@ -408,8 +408,8 @@ class RaopSender(
             try {
                 runAp2()
             } catch (e: Exception) {
-                listener.onLog("AirPlay 2 会话建立失败: ${e.message}")
-                listener.onLog("回退到 AirPlay 1 模式...")
+                listener.onLog("AirPlay 2 session setup failed: ${e.message}")
+                listener.onLog("Falling back to AirPlay 1 mode...")
                 closeAll()
                 connectRtsp()
                 runAp1()
@@ -425,7 +425,7 @@ class RaopSender(
             }
         } catch (e: Exception) {
             reason = e.message ?: e.javaClass.simpleName
-            listener.onLog("会话失败: $reason")
+            listener.onLog("Session failed: $reason")
         } finally {
             running = false
             closeAll()
@@ -439,7 +439,7 @@ class RaopSender(
         pairTransient()
         controlEncrypted = true
         setState(State.HANDSHAKE)
-        listener.onLog("配对完成，开始 AirPlay 2 会话")
+        listener.onLog("Pairing complete, starting AirPlay 2 session")
         ap2GetInfo()
         ap2SetupSession()
         openEventChannel()
@@ -456,7 +456,7 @@ class RaopSender(
         controlOut = ByteArray(0)
         controlIn = ByteArray(0)
         setState(State.HANDSHAKE)
-        listener.onLog("AirPlay 1 模式: OPTIONS/ANNOUNCE/SETUP/RECORD")
+        listener.onLog("AirPlay 1 mode: OPTIONS/ANNOUNCE/SETUP/RECORD")
         sendOptions()
         sendAnnounce()
         sendSetupAp1()
@@ -502,7 +502,7 @@ class RaopSender(
         var lastError: Exception? = null
         for ((uri, transport, label) in variants) {
             try {
-                listener.onLog("AP1 SETUP 尝试[$label]")
+                listener.onLog("AP1 SETUP attempt [$label]")
                 val req = buildRtspRequest(
                     "SETUP", uri, null, ByteArray(0),
                     extra = listOf("Transport" to "RTP/AVP/UDP;unicast;interleaved=0-1;mode=record;$transport")
@@ -524,25 +524,25 @@ class RaopSender(
                         "timing_port" -> timingPortRemote = v
                     }
                 }
-                if (serverPort == 0) throw IOException("AP1 SETUP 未返回 server_port")
+                if (serverPort == 0) throw IOException("AP1 SETUP returned no server_port")
                 if (controlPort == 0) controlPort = serverPort
                 rtspSession = resp.headers["session"] ?: "1"
                 listener.onLog("AP1 SETUP ok [$label]: server=$serverPort control=$controlPort timing=$timingPortRemote session=$rtspSession")
                 return
             } catch (e: SocketTimeoutException) {
                 lastError = e
-                listener.onLog("AP1 SETUP [$label] 无响应，重新连接后重试下一种变体")
+                listener.onLog("AP1 SETUP [$label] timed out; reconnecting and trying next variant")
                 closeAll()
                 connectRtsp()
                 sendOptions()
                 sendAnnounce()
             } catch (e: Exception) {
                 lastError = e
-                listener.onLog("AP1 SETUP [$label] 失败: ${e.message}")
+                listener.onLog("AP1 SETUP [$label] failed: ${e.message}")
                 throw e
             }
         }
-        throw IOException("AP1 SETUP 无响应（已尝试 4 种变体）", lastError)
+        throw IOException("AP1 SETUP timed out (tried 4 variants)", lastError)
     }
 
     private fun sendRecordAp1() {
@@ -584,7 +584,7 @@ class RaopSender(
         seq = rnd.nextInt(65536)
         plainRxBuf.reset()
 
-        listener.onLog("连接 ${device.name} (${device.host}:${device.port}) ...")
+        listener.onLog("Connecting to ${device.name} (${device.host}:${device.port}) ...")
         val s = Socket()
         s.connect(InetSocketAddress(device.host, device.port), 8000)
         s.tcpNoDelay = true
@@ -617,11 +617,11 @@ class RaopSender(
         // NTP/timing 回复也走发送队列，必须在 SETUP 前就把发送线程拉起来，
         // 否则握手期间的 timing 探测无人应答，SETUP 会超时。
         startTxThreads()
-        listener.onLog("TCP 已连接，开始瞬时配对")
+        listener.onLog("TCP connected, starting transient pairing")
         val sockLocal = s.localAddress.hostAddress ?: "?"
         val picked = pickLocalIp()
         preferredLocalIp = picked ?: sockLocal
-        listener.onLog("本机地址: socket=$sockLocal, 选定=$preferredLocalIp")
+        listener.onLog("Local address: socket=$sockLocal, picked=$preferredLocalIp")
     }
 
     private fun pairTransient() {
@@ -637,13 +637,13 @@ class RaopSender(
         var resp = httpPost("/pair-setup", "application/octet-stream", m1)
         checkCode(resp, "/pair-setup M1")
         val m2 = Tlv8.decode(resp.body)
-        if (m2.containsKey(Tlv8.ERROR)) throw IOException("配对被设备拒绝 (error=${m2[Tlv8.ERROR]?.firstOrNull()})")
-        val salt = m2[Tlv8.SALT] ?: throw IOException("配对响应缺少 salt")
-        val pubB = m2[Tlv8.PUBLIC_KEY] ?: throw IOException("配对响应缺少 public key")
+        if (m2.containsKey(Tlv8.ERROR)) throw IOException("Pairing rejected by device (error=${m2[Tlv8.ERROR]?.firstOrNull()})")
+        val salt = m2[Tlv8.SALT] ?: throw IOException("Pairing response missing salt")
+        val pubB = m2[Tlv8.PUBLIC_KEY] ?: throw IOException("Pairing response missing public key")
 
         val srp = AirplayCrypto.SrpClient()
         srp.start("3939")
-        if (!srp.process(salt, pubB)) throw IOException("SRP 参数校验失败")
+        if (!srp.process(salt, pubB)) throw IOException("SRP parameter validation failed")
 
         val m3 = Tlv8.encode(
             listOf(
@@ -655,9 +655,9 @@ class RaopSender(
         resp = httpPost("/pair-setup", "application/octet-stream", m3)
         checkCode(resp, "/pair-setup M3")
         val m4 = Tlv8.decode(resp.body)
-        if (m4.containsKey(Tlv8.ERROR)) throw IOException("配对 PIN 未被接受 (error=${m4[Tlv8.ERROR]?.firstOrNull()})")
-        val serverProof = m4[Tlv8.PROOF] ?: throw IOException("配对响应缺少服务端证明 M2")
-        if (!srp.verifyServerProof(serverProof)) throw IOException("服务端 SRP 证明校验失败")
+        if (m4.containsKey(Tlv8.ERROR)) throw IOException("Pairing PIN not accepted (error=${m4[Tlv8.ERROR]?.firstOrNull()})")
+        val serverProof = m4[Tlv8.PROOF] ?: throw IOException("Pairing response missing server proof M2")
+        if (!srp.verifyServerProof(serverProof)) throw IOException("Server SRP proof verification failed")
 
         val k = srp.sessionKey()
         controlOut = hkdfSha512("Control-Salt", "Control-Write-Encryption-Key", k, 32)
@@ -667,7 +667,7 @@ class RaopSender(
         audioKey = if (k.size > 32) k.copyOfRange(0, 32) else k
         audioNonce = 0
         encryptAudio = true
-        listener.onLog("瞬时配对成功 (M4)")
+        listener.onLog("Transient pairing ok (M4)")
     }
 
     private fun ap2GetInfo() {
@@ -683,14 +683,14 @@ class RaopSender(
         // Fast fallback: if the canonical variants get no reply, the receiver
         // probably wants legacy AirPlay 1; don't burn time on more variants.
         val variants = listOf(
-            Variant(rtspUri(), true, false, null, "完整字段 rtsp://ip/id"),
-            Variant(rtspUri(), true, true, null, "最小字段 rtsp://ip/id")
+            Variant(rtspUri(), true, false, null, "full fields rtsp://ip/id"),
+            Variant(rtspUri(), true, true, null, "minimal fields rtsp://ip/id")
         )
         var lastError: Exception? = null
         for (v in variants) {
             try {
                 val body = if (v.minimalBody) sessionSetupBodyMinimal() else sessionSetupBody()
-                listener.onLog("SETUP session 尝试[${v.label}] ${v.uri} (${body.size} bytes)")
+                listener.onLog("SETUP session attempt [${v.label}] ${v.uri} (${body.size} bytes)")
                 val resp = sendAp2(
                     "SETUP", v.uri, "application/x-apple-binary-plist", body,
                     streamId = v.streamId, hkp = v.hkp, timeoutMs = 4000
@@ -701,14 +701,14 @@ class RaopSender(
                 listener.onLog("SETUP session ok [${v.label}], eventPort=$eventPort")
                 return
             } catch (e: SocketTimeoutException) {
-                listener.onLog("SETUP [${v.label}] 无响应，连接已错位，回退 AirPlay 1")
-                throw IOException("SETUP session 无响应", e)
+                listener.onLog("SETUP [${v.label}] timed out; connection desynced, falling back to AirPlay 1")
+                throw IOException("SETUP session timed out", e)
             } catch (e: Exception) {
                 lastError = e
-                listener.onLog("SETUP [${v.label}] 失败: ${e.message}")
+                listener.onLog("SETUP [${v.label}] failed: ${e.message}")
             }
         }
-        throw IOException("SETUP session 无响应（已尝试 ${variants.size} 种变体）", lastError)
+        throw IOException("SETUP session timed out (tried ${variants.size} variants)", lastError)
     }
 
     private fun sessionSetupBody(): ByteArray {
@@ -751,7 +751,7 @@ class RaopSender(
 
     private fun openEventChannel() {
         if (eventPort == 0) {
-            listener.onLog("警告: 设备未提供 eventPort，继续（部分设备会拒绝）")
+            listener.onLog("Warning: device did not provide eventPort, continuing (some devices may reject)")
             return
         }
         val s = Socket()
@@ -759,13 +759,13 @@ class RaopSender(
         s.tcpNoDelay = true
         s.soTimeout = 2000
         eventSock = s
-        listener.onLog("事件通道已打开 -> ${device.host}:$eventPort")
+        listener.onLog("Event channel opened -> ${device.host}:$eventPort")
         eventThread = Thread({ eventLoop() }, "raop-event").also { it.start() }
     }
 
     private fun ap2Record() {
         val resp = sendAp2("RECORD", rtspUri(), null, ByteArray(0))
-        if (resp.code !in 200..299) listener.onLog("RECORD 返回 ${resp.code}（继续）")
+        if (resp.code !in 200..299) listener.onLog("RECORD returned ${resp.code} (continuing)")
         else listener.onLog("RECORD ok")
     }
 
@@ -795,7 +795,7 @@ class RaopSender(
         val s0 = streams?.items?.firstOrNull() as? PValue.DictV
         serverPort = (s0?.pairs?.firstOrNull { it.first == "dataPort" }?.second as? PValue.IntV)?.v?.toInt() ?: 0
         controlPort = (s0?.pairs?.firstOrNull { it.first == "controlPort" }?.second as? PValue.IntV)?.v?.toInt() ?: serverPort
-        if (serverPort == 0) throw IOException("SETUP stream 未返回 dataPort")
+        if (serverPort == 0) throw IOException("SETUP stream returned no dataPort")
         listener.onLog("SETUP stream ok, dataPort=$serverPort controlPort=$controlPort")
     }
 
@@ -829,8 +829,8 @@ class RaopSender(
         startFeedback()
         startVolumeFlush()
         startDelayedSends()
-        listener.onLog("正在推流: 44.1kHz 16bit 立体声 -> ${device.name}（预缓冲 ${latencyFrames / RATE}.${(latencyFrames % RATE) * 10 / RATE}s）")
-        listener.onLog("ALAC 压缩编码已启用（逐包自校验，失败自动回退未压缩）")
+        listener.onLog("Streaming: 44.1kHz 16bit stereo -> ${device.name} (prebuffer ${latencyFrames / RATE}.${(latencyFrames % RATE) * 10 / RATE}s)")
+        listener.onLog("Compressed ALAC enabled (per-packet self-check; falls back to uncompressed on failure)")
         listener.onStarted()
     }
 
@@ -860,7 +860,7 @@ class RaopSender(
         try {
             sendVolume(db)
         } catch (e: Exception) {
-            listener.onLog("音量设置失败: ${e.javaClass.simpleName}: ${e.message}")
+            listener.onLog("Volume set failed: ${e.javaClass.simpleName}: ${e.message}")
             // mark dirty again so the flush thread retries
             synchronized(volumeLock) {
                 volumeDirty = true
@@ -954,7 +954,7 @@ class RaopSender(
         val req = buildRtspRequest(method, uri, contentType, body, streamId = streamId, hkp = hkp)
         if (method == "SETUP" && com.airbridge.app.BuildConfig.DEBUG) {
             val hex = req.take(180).joinToString("") { "%02x".format(it) }
-            listener.onLog("SETUP 请求前 180 字节: $hex")
+            listener.onLog("SETUP request first 180 bytes: $hex")
         }
         writeControl(req)
         return readControlResponse(timeoutMs, lastCseq)
@@ -1015,28 +1015,28 @@ class RaopSender(
                 val resp = parseControlResponse()
                 if (resp != null) {
                     if (expectedCseq != null && resp.cseq != null && resp.cseq != expectedCseq) {
-                        listener.onLog("丢弃过期响应 cseq=${resp.cseq} (期望 $expectedCseq)")
+                        listener.onLog("Dropping stale response cseq=${resp.cseq} (expected $expectedCseq)")
                         continue
                     }
-                    debugLog("readControlResponse 返回 code=${resp.code} body=${resp.body.size}B")
+                    debugLog("readControlResponse returned code=${resp.code} body=${resp.body.size}B")
                     return resp
                 }
                 try {
                     fillPlainRx()
-                    debugLog("readControlResponse: 缓冲=${plainRxBuf.size()}B")
+                    debugLog("readControlResponse: buffer=${plainRxBuf.size()}B")
                 } catch (e: SocketTimeoutException) {
-                    listener.onLog("等待响应超时，已收到 $encBytesReceived 个加密字节")
+                    listener.onLog("Timed out waiting for a response, received $encBytesReceived encrypted bytes")
                     if (com.airbridge.app.BuildConfig.DEBUG) {
                     val cur = plainRxBuf.toByteArray()
                     val headEnd = findHeadEnd(cur)
                     val ascii = cur.take(300).joinToString("") { b ->
                         if (b.toInt() in 32..126) b.toInt().toChar().toString() else "."
                     }
-                    listener.onLog("超时诊断: 明文=${cur.size} 字节, headEnd=$headEnd")
-                    listener.onLog("超时诊断(可打印前300): $ascii")
+                    listener.onLog("Timeout diag: plaintext=${cur.size} bytes, headEnd=$headEnd")
+                    listener.onLog("Timeout diag (printable first 300): $ascii")
                     if (headEnd != null && headEnd > 0) {
                         listener.onLog(
-                            "超时诊断(响应头): " +
+                            "Timeout diag (response header): " +
                                 String(cur, 0, minOf(headEnd, 600), Charsets.US_ASCII)
                         )
                     }
@@ -1053,7 +1053,7 @@ class RaopSender(
         if (controlEncrypted) {
             val frame = readEncryptedFrame()
             plainRxBuf.write(frame)
-            if (plainRxBuf.size() > 1 shl 20) throw IOException("控制通道缓冲过大")
+            if (plainRxBuf.size() > 1 shl 20) throw IOException("Control channel buffer too large")
         } else {
             val input = rtsp!!.getInputStream()
             var headEnd = findHeadEnd(plainRxBuf.toByteArray())
@@ -1061,7 +1061,7 @@ class RaopSender(
                 var state = headState(plainRxBuf.toByteArray())
                 while (state < 4) {
                     val b = input.read()
-                    if (b < 0) throw IOException("控制连接被关闭")
+                    if (b < 0) throw IOException("Control connection closed")
                     plainRxBuf.write(b)
                     state = when {
                         b == '\r'.code && (state == 0 || state == 2) -> state + 1
@@ -1069,9 +1069,9 @@ class RaopSender(
                         b == '\r'.code -> 1
                         else -> 0
                     }
-                    if (plainRxBuf.size() > 1 shl 20) throw IOException("控制响应过大")
+                    if (plainRxBuf.size() > 1 shl 20) throw IOException("Control response too large")
                 }
-                headEnd = findHeadEnd(plainRxBuf.toByteArray()) ?: throw IOException("控制响应头不完整")
+                headEnd = findHeadEnd(plainRxBuf.toByteArray()) ?: throw IOException("Control response header incomplete")
             }
             val contentLen = parseContentLength(
                 String(plainRxBuf.toByteArray(), 0, headEnd, Charsets.US_ASCII)
@@ -1079,7 +1079,7 @@ class RaopSender(
             val total = headEnd + 4 + contentLen
             while (plainRxBuf.size() < total) {
                 val b = input.read()
-                if (b < 0) throw IOException("控制连接被关闭")
+                if (b < 0) throw IOException("Control connection closed")
                 plainRxBuf.write(b)
             }
         }
@@ -1090,13 +1090,13 @@ class RaopSender(
         val lenData = readFully(input, 2)
         encBytesReceived += 2
         val len = (lenData[0].toInt() and 0xFF) or ((lenData[1].toInt() and 0xFF) shl 8)
-        debugLog("收到加密帧: 明文长度=$len")
+        debugLog("Received encrypted frame: plaintext length=$len")
         val ct = readFully(input, len + 16)
         encBytesReceived += len + 16
         val nonce = counterNonce8(ctrlRecvCtr++)
         val pt = chacha20Poly1305Decrypt(controlIn, nonce, ct, lenData)
-            ?: throw IOException("控制通道解密失败")
-        debugLog("解密帧成功: ${pt.size} 字节")
+            ?: throw IOException("Control channel decryption failed")
+        debugLog("Decrypted frame ok: ${pt.size} bytes")
         return pt
     }
 
@@ -1105,7 +1105,7 @@ class RaopSender(
         var off = 0
         while (off < n) {
             val r = input.read(out, off, n - off)
-            if (r < 0) throw IOException("连接被关闭")
+            if (r < 0) throw IOException("Connection closed")
             off += r
         }
         return out
@@ -1114,7 +1114,7 @@ class RaopSender(
     private fun parseControlResponse(): ControlResponse? {
         val data = plainRxBuf.toByteArray()
         val headEnd = findHeadEnd(data) ?: return null
-        debugLog("parseControlResponse: 找到响应头, 缓冲=${data.size}B")
+        debugLog("parseControlResponse: found response header, buffer=${data.size}B")
         val head = String(data, 0, headEnd, Charsets.US_ASCII)
         val lines = head.split("\r\n")
         if (lines.isEmpty()) return null
@@ -1133,14 +1133,14 @@ class RaopSender(
         val cseq = headers["cseq"]?.toIntOrNull()
         val total = headEnd + 4 + contentLen
         if (data.size < total) {
-            listener.onLog("解析: 响应头完整但 body 不完整 (需要 $total, 已有 ${data.size})")
+            listener.onLog("Parse: header complete but body incomplete (need $total, have ${data.size})")
             return null
         }
         val body = data.copyOfRange(headEnd + 4, total)
         val rem = data.copyOfRange(total, data.size)
         plainRxBuf.reset()
         plainRxBuf.write(rem)
-        debugLog("parseControlResponse: 消费响应 code=$code body=${body.size}B 剩余=${rem.size}B")
+        debugLog("parseControlResponse: consumed response code=$code body=${body.size}B remaining=${rem.size}B")
         return ControlResponse(code, headers, body, statusLine, cseq)
     }
 
@@ -1183,11 +1183,11 @@ class RaopSender(
     private fun checkCode(resp: ControlResponse, step: String) {
         if (resp.code !in 200..299) {
             val hint = when (resp.code) {
-                470 -> "（设备要求 PIN 配对）"
-                403 -> "（被设备的访问控制拒绝）"
+                470 -> " (device requires PIN pairing)"
+                403 -> " (rejected by device access control)"
                 else -> ""
             }
-            throw IOException("$step 返回 HTTP ${resp.code} $hint")
+            throw IOException("$step returned HTTP ${resp.code}$hint")
         }
     }
 
@@ -1210,7 +1210,7 @@ class RaopSender(
                     if (lenHave < 2) continue
                     val len = (lenBytes[0].toInt() and 0xFF) or ((lenBytes[1].toInt() and 0xFF) shl 8)
                     if (len > 4096) {
-                        listener.onLog("事件帧长度异常 len=$len，重置事件通道")
+                        listener.onLog("Event frame length invalid len=$len, resetting event channel")
                         lenHave = 0
                         continue
                     }
@@ -1233,28 +1233,28 @@ class RaopSender(
                     val prevCtr = chacha20Poly1305Decrypt(eventIn, counterNonce8(eventRecvCtr - 1), frame, lenBytes)
                     val nextCtr = chacha20Poly1305Decrypt(eventIn, counterNonce8(eventRecvCtr + 1), frame, lenBytes)
                     listener.onLog(
-                        "事件帧解密失败 len=$len ctr=$eventRecvCtr " +
+                        "Event frame decryption failed len=$len ctr=$eventRecvCtr " +
                             "read=${swapped != null} ctr-1=${prevCtr != null} ctr+1=${nextCtr != null}"
                     )
                     when {
                         swapped != null -> {
-                            listener.onLog("事件密钥方向相反，已交换")
+                            listener.onLog("Event key direction reversed, swapped")
                             val t = eventIn
                             eventIn = eventOut
                             eventOut = t
                             pt = swapped
                         }
                         prevCtr != null -> {
-                            listener.onLog("事件计数器实际从 -1 开始")
+                            listener.onLog("Event counter actually starts at -1")
                             pt = prevCtr
                         }
                         nextCtr != null -> {
-                            listener.onLog("事件计数器实际从 +1 开始")
+                            listener.onLog("Event counter actually starts at +1")
                             eventRecvCtr++
                             pt = nextCtr
                         }
                         else -> {
-                            listener.onLog("事件帧无法解密，跳过该帧")
+                            listener.onLog("Cannot decrypt event frame, skipping")
                             continue
                         }
                     }
@@ -1263,12 +1263,12 @@ class RaopSender(
                 eventRecvCtr++
                 plainBuf.write(out)
                 if (plainBuf.size() > 1 shl 20) {
-                    listener.onLog("事件通道明文缓冲过大，断开")
+                    listener.onLog("Event channel plaintext buffer too large, disconnecting")
                     break
                 }
                 if (eventFrameCount < 5) {
                     eventFrameCount++
-                    listener.onLog("事件帧解密成功 len=$len")
+                    listener.onLog("Event frame decrypted ok len=$len")
                 }
                 while (true) {
                     val data = plainBuf.toByteArray()
@@ -1292,7 +1292,7 @@ class RaopSender(
             } catch (e: SocketTimeoutException) {
                 // normal: keep partial bytes and continue
             } catch (e: IOException) {
-                if (running) listener.onLog("事件通道断开: ${e.message}")
+                if (running) listener.onLog("Event channel closed: ${e.message}")
                 break
             }
         }
@@ -1358,7 +1358,7 @@ class RaopSender(
                     if (!clockLogged) {
                         clockLogged = true
                         listener.onLog(
-                            String.format(Locale.US, "发送时钟已锁定: 捕获=%.1f Hz 主时钟=%.1f Hz", cap, mcRate)
+                            String.format(Locale.US, "Send clock locked: capture=%.1f Hz master=%.1f Hz", cap, mcRate)
                         )
                     }
                     val measured = (FRAMES_PER_PACKET * 1_000_000_000L / rateHz).toLong()
@@ -1370,7 +1370,7 @@ class RaopSender(
                     }
                 } else if (!clockLogged) {
                     clockLogged = true
-                    listener.onLog("发送时钟参考: 标称 44100 Hz（捕获/主时钟均未锁定）")
+                    listener.onLog("Send clock reference: nominal 44100 Hz (capture/master clock not locked)")
                 }
 
                 if (ring.availableFrames() < FRAMES_PER_PACKET && framesSent == 0L) {
@@ -1397,7 +1397,7 @@ class RaopSender(
                     try {
                         sendAudioPacket()
                     } catch (e: Exception) {
-                        listener.onLog("音频发送失败: ${e.message}")
+                        listener.onLog("Audio send failed: ${e.message}")
                         running = false
                         break
                     }
@@ -1428,18 +1428,18 @@ class RaopSender(
                     if (lp >= 400) {
                         if (!lossStorm) {
                             lossStorm = true
-                            listener.onLog("丢包率过高，临时关闭冗余以降低链路负载")
+                            listener.onLog("Packet loss too high, temporarily disabling redundancy to reduce link load")
                         }
                     } else if (lp < 100 && lossStorm) {
                         lossStorm = false
-                        listener.onLog("丢包率回落，恢复冗余")
+                        listener.onLog("Packet loss recovered, re-enabling redundancy")
                     }
                     if (!robustMode) {
                         if (lp >= 4 || req >= 2) {
                             if (!adaptiveRedundancy) {
                                 adaptiveRedundancy = true
                                 listener.onLog(
-                                    "网络丢包较多，已自动启用延时冗余（延迟 ${redundancyDelayNanos() / 1_000_000}ms）"
+                                    "Packet loss detected, auto-enabled delayed redundancy (delay ${redundancyDelayNanos() / 1_000_000}ms)"
                                 )
                             }
                             cleanWindows = 0
@@ -1447,32 +1447,32 @@ class RaopSender(
                             cleanWindows++
                             if (cleanWindows >= 3) {
                                 adaptiveRedundancy = false
-                                listener.onLog("网络恢复，已自动关闭延时冗余")
+                                listener.onLog("Network recovered, auto-disabled delayed redundancy")
                             }
                         }
                     }
                     val loss = if (req > 0) {
-                        "$req 次, 已重发=$rt, 已失效=$miss, 丢包帧=$lp" +
-                            (if (thr > 0) ", 截流=$thr" else "")
+                        "$req reqs, retransmitted=$rt, missed=$miss, lost frames=$lp" +
+                            (if (thr > 0) ", throttled=$thr" else "")
                     } else null
                     val redState = when {
-                        lossStorm -> "风暴暂停"
-                        robustMode -> "手动"
-                        adaptiveRedundancy -> "自动"
-                        else -> "关"
+                        lossStorm -> "storm-paused"
+                        robustMode -> "manual"
+                        adaptiveRedundancy -> "auto"
+                        else -> "off"
                     }
                     listener.onLog(
                         String.format(
                             Locale.US,
-                            "音频节奏: 缓冲=%d/%d 周期=%.2fms 欠载=%d 补静音=%d 重排=%d 缺口>20ms=%d 最大间隔=%dms 溢出=%d 发送丢弃=%d ALAC均值=%dB 回退=%d 捕获=%.1fHz 主时钟=%.1fHz 冗余=%s%s%s%s",
+                            "Audio pacing: buffer=%d/%d period=%.2fms underruns=%d padded=%d resyncs=%d gaps>20ms=%d maxGap=%dms overflow=%d txDrops=%d ALAC avg=%dB verbatim=%d capture=%.1fHz master=%.1fHz redundancy=%s%s%s%s",
                             ring.availableFrames(), latencyFrames, periodNanos / 1_000_000.0,
                             underruns, padded, resyncs, gapsOver20ms, maxGapMs, overflow, txd,
                             avgAlac, alacVerbatim,
                             cap, mcRate,
                             redState,
-                            if (loss != null) " 丢包[$loss]" else "",
-                            if (rs > 0) " 冗余发送=$rs" else "",
-                            if (rskip > 0) " 冗余丢弃=$rskip" else ""
+                            if (loss != null) " loss[$loss]" else "",
+                            if (rs > 0) " redundancySent=$rs" else "",
+                            if (rskip > 0) " redundancySkipped=$rskip" else ""
                         )
                     )
                     underruns = 0

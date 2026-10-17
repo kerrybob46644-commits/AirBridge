@@ -50,11 +50,11 @@ class AudioMasterClock(
                 AudioFormat.ENCODING_PCM_16BIT
             )
         } catch (t: Throwable) {
-            onLog("主时钟不可用: ${t.message}")
+            onLog("Master clock unavailable: ${t.message}")
             return
         }
         if (minBuf <= 0) {
-            onLog("主时钟不可用: getMinBufferSize=$minBuf")
+            onLog("Master clock unavailable: getMinBufferSize=$minBuf")
             return
         }
         val t = try {
@@ -76,7 +76,7 @@ class AudioMasterClock(
                 .setBufferSizeInBytes(maxOf(minBuf * 2, 8192))
                 .build()
         } catch (t: Throwable) {
-            onLog("主时钟创建失败: ${t.message}")
+            onLog("Master clock creation failed: ${t.message}")
             return
         }
         track = t
@@ -86,7 +86,7 @@ class AudioMasterClock(
         try {
             t.play()
         } catch (e: Exception) {
-            onLog("主时钟启动失败: ${e.message}")
+            onLog("Master clock start failed: ${e.message}")
             stop()
         }
     }
@@ -131,7 +131,7 @@ class AudioMasterClock(
             } catch (e: InterruptedException) {
                 break
             } catch (e: Exception) {
-                if (running) onLog("主时钟写入失败: ${e.message}")
+                if (running) onLog("Master clock write failed: ${e.message}")
                 break
             }
         }

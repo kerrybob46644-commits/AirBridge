@@ -74,7 +74,7 @@ class AudioCapture(
                 }
                 record = rec
                 sampleRate = rate
-                onLog("音频捕获已启动: ${rate}Hz, 最小缓冲=${min}B, 实际缓冲=${maxOf(min * 4, 8192)}B")
+                onLog("Audio capture started: ${rate}Hz, min buffer=${min}B, actual buffer=${maxOf(min * 4, 8192)}B")
                 measuredRateHz = 0.0
                 clockHead = 0
                 clockCount = 0
@@ -84,7 +84,7 @@ class AudioCapture(
                 thread = Thread({ loop(rec) }, "audio-capture").also { it.start() }
                 return true
             } catch (t: Throwable) {
-                onError("音频捕获初始化失败 ($rate Hz): ${t.message}")
+                onError("Audio capture init failed ($rate Hz): ${t.message}")
             }
         }
         return false
@@ -123,7 +123,7 @@ class AudioCapture(
                 lastDiagNanos = readEnd
                 val avgMs = if (readCount > 0) (30_000L / readCount) else 0L
                 val maxMs = maxReadNanos / 1_000_000L
-                onLog("捕获节奏: 平均每包=${avgMs}ms 最大单包等待=${maxMs}ms >50ms次数=$gapCount")
+                onLog("Capture pacing: avg per read=${avgMs}ms max single read=${maxMs}ms >50ms count=$gapCount")
                 readCount = 0
                 maxReadNanos = 0
                 gapCount = 0

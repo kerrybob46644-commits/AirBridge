@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AirBridge</string>
+
+    <!-- Notifications -->
+    <string name="channel_name">AirBridge 投射服务</string>
+    <string name="notif_title">正在投射到 AirPlay 设备</string>
+    <string name="notif_content">点击停止可结束投射</string>
+    <string name="notif_action_stop">停止</string>
+
+    <!-- Common -->
+    <string name="language">语言</string>
+    <string name="language_en">English</string>
+    <string name="language_zh">中文</string>
+    <string name="theme">主题</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+
+    <!-- Device list -->
+    <string name="add_manual">手动添加</string>
+    <string name="no_devices">没有发现设备。\n请确认手机和 HomePod 连接的是同一个 Wi-Fi；\n如果自动发现不到，点右下角“手动添加”，输入 HomePod 的 IP（端口 7000）。</string>
+    <string name="connect">连接</string>
+    <string name="delete">删除</string>
+
+    <!-- Settings -->
+    <string name="latency_network">延迟与网络</string>
+    <string name="latency_hint">延迟模式（下次连接生效）</string>
+    <string name="latency_stable">稳定</string>
+    <string name="latency_low">低延迟</string>
+    <string name="latency_ultra">极低延迟</string>
+    <string name="latency_safe">网络稳定</string>
+    <string name="latency_detail">网络稳定≈2s · 稳定≈1.5s · 低延迟≈0.25s · 极低延迟≈0.1s（弱网推荐网络稳定）</string>
+    <string name="robust">网络稳健模式</string>
+    <string name="robust_desc">Wi-Fi 信号不佳时冗余发包，降低爆音</string>
+    <string name="alac">压缩 ALAC</string>
+    <string name="alac_desc">减小每个音频包，弱网更稳；出现异常时请关闭</string>
+
+    <!-- Status -->
+    <string name="status_scanning">正在扫描局域网... 已发现 %1$d 个设备</string>
+    <string name="devices_count">设备数: %1$d</string>
+
+    <!-- Casting -->
+    <string name="casting">正在投射</string>
+    <string name="test_tone_stop">停止测试音</string>
+    <string name="test_tone_play">播放测试音 (440Hz)</string>
+    <string name="volume">音量</string>
+    <string name="stop_casting">停止投射</string>
+
+    <!-- Logs -->
+    <string name="logs">日志</string>
+    <string name="clear_logs">清空</string>
+    <string name="logs_empty">日志区</string>
+
+    <!-- Manual device dialog -->
+    <string name="add_manual_title">手动添加设备</string>
+    <string name="name">名称</string>
+    <string name="ip_address">IP 地址</string>
+    <string name="port">端口</string>
+    <string name="add">添加</string>
+    <string name="cancel">取消</string>
+    <string name="default_device_name">HomePod</string>
+</resources>

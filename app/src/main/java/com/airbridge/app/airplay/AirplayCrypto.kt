@@ -176,11 +176,11 @@ object AirplayCrypto {
         // BC's rfc8032 API only exposes random private-key generation; a
         // deterministic seed-based path is needed for HAP PIN pairing
         // (Apple TV). HomePod transient pairing does not use Ed25519.
-        throw UnsupportedOperationException("Ed25519 sign: PIN 配对路径暂未启用")
+        throw UnsupportedOperationException("Ed25519 sign: PIN pairing path not yet enabled")
     }
 
     fun ed25519Verify(pub: ByteArray, msg: ByteArray, sig: ByteArray): Boolean {
-        throw UnsupportedOperationException("Ed25519 verify: PIN 配对路径暂未启用")
+        throw UnsupportedOperationException("Ed25519 verify: PIN pairing path not yet enabled")
     }
 
     // ---- SRP-6a 3072 / SHA-512 (HomeKit client) ----------------------------

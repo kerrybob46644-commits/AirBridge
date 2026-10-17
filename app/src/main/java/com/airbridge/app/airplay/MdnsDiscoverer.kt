@@ -94,7 +94,7 @@ class MdnsDiscoverer(
             for (type in listOf("_airplay._tcp.", "_raop._tcp.")) {
                 val l = object : NsdManager.DiscoveryListener {
                     override fun onDiscoveryStarted(serviceType: String) {
-                        log("Nsd 发现已启动: $serviceType")
+                        log("Nsd discovery started: $serviceType")
                     }
 
                     override fun onServiceFound(serviceInfo: NsdServiceInfo) {
@@ -114,7 +114,7 @@ class MdnsDiscoverer(
                     override fun onDiscoveryStopped(serviceType: String) = Unit
 
                     override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                        log("Nsd 发现启动失败: $serviceType (code=$errorCode)")
+                        log("Nsd discovery start failed: $serviceType (code=$errorCode)")
                     }
 
                     override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) = Unit
@@ -123,7 +123,7 @@ class MdnsDiscoverer(
                 nm.discoverServices(type, NsdManager.PROTOCOL_DNS_SD, l)
             }
         } catch (e: Exception) {
-            log("NsdManager 不可用: ${e.message}")
+            log("NsdManager unavailable: ${e.message}")
         }
     }
 
@@ -146,7 +146,7 @@ class MdnsDiscoverer(
                 info,
                 object : NsdManager.ResolveListener {
                     override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                        log("Nsd 解析失败 ${serviceInfo.serviceName}: code=$errorCode")
+                        log("Nsd resolve failed ${serviceInfo.serviceName}: code=$errorCode")
                     }
 
                     override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
@@ -187,7 +187,7 @@ class MdnsDiscoverer(
                 }
             )
         } catch (e: Exception) {
-            log("Nsd 解析异常: ${e.message}")
+            log("Nsd resolve error: ${e.message}")
         }
     }
 
@@ -419,14 +419,14 @@ class MdnsDiscoverer(
                     it.joinGroup(group)
                 }
             } catch (e2: Exception) {
-                val msg = "mDNS 套接字创建失败: ${e1.message} / ${e2.message}"
+                val msg = "mDNS socket creation failed: ${e1.message} / ${e2.message}"
                 android.util.Log.e("AirBridge", msg)
                 log(msg)
                 return false
             }
         }
         socket = s
-        val msg = if (unicastFallback) "mDNS: 5353 端口被占用，使用单播回退模式" else "mDNS: 组播模式"
+        val msg = if (unicastFallback) "mDNS: port 5353 in use, using unicast fallback mode" else "mDNS: multicast mode"
         android.util.Log.d("AirBridge", msg)
         log(msg)
         return true
